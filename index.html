@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Alex Mercer | Glassmorphic Portfolio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes pulseBlob {
+      0%, 100% { transform: scale(1) translate(0px, 0px); }
+      50% { transform: scale(1.15) translate(30px, -20px); }
+    }
+    .blob-1 { animation: pulseBlob 12s ease-in-out infinite; }
+    .blob-2 { animation: pulseBlob 15s ease-in-out infinite reverse; }
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+    .glass-input {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+      outline: none;
+      transition: all 0.2s;
+    }
+    .glass-input:focus { border-color: #60a5fa; background: rgba(0, 0, 0, 0.6); }
+  </style>
+</head>
+<body class="bg-[#0D0E12] text-white min-h-screen relative font-sans overflow-x-hidden">
+
+  <!-- Background Blobs -->
+  <div class="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
+    <div class="blob-1 absolute -top-20 -left-20 w-[35rem] h-[35rem] rounded-full bg-purple-700/20 blur-[130px]"></div>
+    <div class="blob-2 absolute top-1/3 -right-20 w-[32rem] h-[32rem] rounded-full bg-blue-600/20 blur-[130px]"></div>
+  </div>
+
+  <div class="max-w-4xl mx-auto px-4 py-10 pb-32">
+    <!-- Tabs -->
+    <header class="sticky top-6 z-40 mb-10 flex justify-center">
+      <div id="tabBar" class="glass-panel p-1.5 rounded-2xl flex flex-wrap gap-1 shadow-2xl">
+        <button onclick="window.setTab('personalInfo')" id="tab-personalInfo" class="px-4 py-2 rounded-xl text-sm font-medium">Profile</button>
+        <button onclick="window.setTab('education')" id="tab-education" class="px-4 py-2 rounded-xl text-sm font-medium">Education</button>
+        <button onclick="window.setTab('projects')" id="tab-projects" class="px-4 py-2 rounded-xl text-sm font-medium">Projects</button>
+        <button onclick="window.setTab('achievements')" id="tab-achievements" class="px-4 py-2 rounded-xl text-sm font-medium">Achievements</button>
+        <button onclick="window.setTab('experience')" id="tab-experience" class="px-4 py-2 rounded-xl text-sm font-medium">Experience</button>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <main id="contentContainer" class="glass-panel p-6 sm:p-10 rounded-3xl transition-all duration-300"></main>
+  </div>
+
+  <!-- Admin Gear -->
+  <button id="adminGear" onclick="window.openAuthModal()" class="fixed bottom-6 right-6 w-12 h-12 rounded-full glass-panel flex items-center justify-center hover:bg-white/10 transition z-40">
+    ⚙
+  </button>
+
+  <!-- Auth Modal -->
+  <div id="authModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="glass-panel bg-[#12131A] p-6 rounded-2xl w-full max-w-sm">
+      <h3 class="text-xl font-bold mb-4">Admin Access</h3>
+      <form onsubmit="window.handleAuthSubmit(event)" class="space-y-4">
+        <input type="password" id="authPasswordInput" class="w-full glass-input p-3 rounded-lg text-sm" placeholder="Password (admin123)" />
+        <p id="authErrorMsg" class="text-red-400 text-xs hidden">Incorrect password.</p>
+        <div class="flex gap-2 justify-end">
+          <button type="button" onclick="window.closeAuthModal()" class="px-4 py-2 text-sm text-gray-400">Cancel</button>
+          <button type="submit" class="px-5 py-2 text-sm bg-blue-600 rounded-lg font-semibold">Unlock</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Toolbar -->
+  <div id="editToolbar" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 hidden w-[90%] max-w-md">
+    <div class="glass-panel bg-[#111318]/90 p-4 rounded-2xl flex items-center justify-between">
+      <span class="text-sm font-medium text-blue-300">Edit Mode</span>
+      <div class="flex gap-2">
+        <button onclick="window.cancelEditing()" class="px-4 py-2 border border-white/20 rounded-xl text-sm">Cancel</button>
+        <button onclick="window.saveAllChanges()" class="px-5 py-2 bg-blue-600 rounded-xl text-sm font-semibold">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    // 1. Keep these CDN imports instead of the ones Firebase generated
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
+    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+
+    // 2. YOUR FIREBASE CONFIGURATION
+    const firebaseConfig = {
+      apiKey: "AIzaSyCt7yTBn7gsH3nzsuJJ3wPXqXjgVW-qDh8",
+      authDomain: "portfolio-db-907f2.firebaseapp.com",
+      projectId: "portfolio-db-907f2",
+      storageBucket: "portfolio-db-907f2.firebasestorage.app",
+      messagingSenderId: "36290310224",
+      appId: "1:36290310224:web:13bfdf833aa7f889d2a155",
+      measurementId: "G-X3S3723JYB"
+    };
+
+    // 3. YOUR CLOUDINARY CONFIGURATION (You still need to get these from Cloudinary)
+    const CLOUD_NAME = "mgzx7yxx"; 
+    const UPLOAD_PRESET = "portfolio_preset"; 
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // ... [Leave the rest of the DEFAULT_DATA and functions exactly the same] ...
+
+    const DEFAULT_DATA = {
+      personalInfo: {
+        name: "Your Name", title: "Your Profession", bio: "Your bio goes here.", skills: "Skill 1, Skill 2",
+        github: "#", linkedin: "#", avatar: "https://via.placeholder.com/150", cvUrl: ""
+      },
+      education: [], projects: [], achievements: [], experience: []
+    };
+
+    window.portfolioData = DEFAULT_DATA;
+    window.draftData = JSON.parse(JSON.stringify(DEFAULT_DATA));
+    window.activeTab = 'personalInfo';
+    window.isEditing = false;
+
+    async function loadData() {
+      try {
+        const docSnap = await getDoc(doc(db, "portfolio", "liveData"));
+        if (docSnap.exists()) window.portfolioData = docSnap.data();
+        else await setDoc(doc(db, "portfolio", "liveData"), DEFAULT_DATA);
+        window.draftData = JSON.parse(JSON.stringify(window.portfolioData));
+        window.renderContent();
+      } catch (e) { console.error("Database error:", e); }
+    }
+
+    window.saveAllChanges = async function() {
+      try {
+        window.portfolioData = JSON.parse(JSON.stringify(window.draftData));
+        await setDoc(doc(db, "portfolio", "liveData"), window.portfolioData);
+        window.isEditing = false;
+        document.getElementById('editToolbar').classList.add('hidden');
+        document.getElementById('adminGear').classList.remove('hidden');
+        window.renderContent();
+        alert("Saved directly to cloud database!");
+      } catch (e) { alert("Save error: " + e.message); }
+    };
+
+    async function uploadToCloudinary(file, resourceType) {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', UPLOAD_PRESET);
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`, { method: 'POST', body: formData });
+      const data = await res.json();
+      return data.secure_url;
+    }
+
+    window.handleCvUpload = async function(event) {
+      if (event.target.files[0]) {
+        try {
+          const url = await uploadToCloudinary(event.target.files[0], 'raw');
+          window.draftData.personalInfo.cvUrl = url;
+          alert("PDF Uploaded! Click 'Save Changes'."); window.renderContent();
+        } catch (e) { alert("Upload failed."); }
+      }
+    };
+
+    window.handlePhotoUpload = async function(event) {
+      if (event.target.files[0]) {
+        try {
+          const url = await uploadToCloudinary(event.target.files[0], 'image');
+          window.draftData.personalInfo.avatar = url; window.renderContent();
+        } catch (e) { alert("Upload failed."); }
+      }
+    };
+
+    window.setTab = function(tab) {
+      window.activeTab = tab;
+      ['personalInfo', 'education', 'projects', 'achievements', 'experience'].forEach(t => {
+        document.getElementById(`tab-${t}`).className = (t === window.activeTab) 
+          ? 'px-4 py-2 rounded-xl text-sm font-medium bg-white/20 text-white shadow' 
+          : 'px-4 py-2 rounded-xl text-sm font-medium text-gray-400 hover:text-white';
+      });
+      window.renderContent();
+    };
+
+    window.openAuthModal = function() { document.getElementById('authModal').classList.remove('hidden'); };
+    window.closeAuthModal = function() { document.getElementById('authModal').classList.add('hidden'); };
+    window.handleAuthSubmit = function(e) {
+      e.preventDefault();
+      if (document.getElementById('authPasswordInput').value === 'admin123') {
+        window.isEditing = true;
+        window.draftData = JSON.parse(JSON.stringify(window.portfolioData));
+        window.closeAuthModal();
+        document.getElementById('adminGear').classList.add('hidden');
+        document.getElementById('editToolbar').classList.remove('hidden');
+        window.renderContent();
+      }
+    };
+    window.cancelEditing = function() {
+      window.isEditing = false;
+      document.getElementById('editToolbar').classList.add('hidden');
+      document.getElementById('adminGear').classList.remove('hidden');
+      window.renderContent();
+    };
+
+    window.removeItem = (section, id) => { window.draftData[section] = window.draftData[section].filter(i => i.id !== id); window.renderContent(); };
+    window.addItem = (section, template) => { window.draftData[section].push({ id: Date.now(), ...template }); window.renderContent(); };
+
+    window.renderContent = function() {
+      const c = document.getElementById('contentContainer');
+      const d = window.isEditing ? window.draftData : window.portfolioData;
+
+      if (window.activeTab === 'personalInfo') {
+        if (!window.isEditing) {
+          c.innerHTML = `
+            <div class="flex flex-col sm:flex-row gap-8">
+              <img src="${d.personalInfo.avatar}" class="w-32 h-32 rounded-3xl object-cover border border-white/20" />
+              <div class="space-y-4">
+                <h1 class="text-4xl font-bold text-white">${d.personalInfo.name}</h1>
+                <p class="text-blue-400">${d.personalInfo.title}</p>
+                <p class="text-gray-300 text-sm">${d.personalInfo.bio}</p>
+                <div class="flex gap-2">${d.personalInfo.skills.split(',').map(s => `<span class="px-2 py-1 bg-white/10 rounded-full text-xs">${s.trim()}</span>`).join('')}</div>
+                ${d.personalInfo.cvUrl ? `<a href="${d.personalInfo.cvUrl}" target="_blank" class="inline-block px-5 py-2 bg-white text-black rounded-full text-sm font-bold">Download CV</a>` : ''}
+              </div>
+            </div>`;
+        } else {
+          c.innerHTML = `
+            <div class="space-y-4">
+              <input type="file" accept="image/*" onchange="window.handlePhotoUpload(event)" class="text-xs file:bg-blue-600 file:text-white file:rounded-xl file:px-3 file:py-1 file:border-0" /> Photo<br>
+              <input type="file" accept="application/pdf" onchange="window.handleCvUpload(event)" class="text-xs file:bg-indigo-600 file:text-white file:rounded-xl file:px-3 file:py-1 file:border-0" /> PDF Resume<br>
+              <input type="text" value="${d.personalInfo.name}" oninput="window.draftData.personalInfo.name=this.value" class="w-full glass-input p-2 rounded" placeholder="Name" />
+              <input type="text" value="${d.personalInfo.title}" oninput="window.draftData.personalInfo.title=this.value" class="w-full glass-input p-2 rounded" placeholder="Title" />
+              <textarea oninput="window.draftData.personalInfo.bio=this.value" class="w-full glass-input p-2 rounded" placeholder="Bio">${d.personalInfo.bio}</textarea>
+              <input type="text" value="${d.personalInfo.skills}" oninput="window.draftData.personalInfo.skills=this.value" class="w-full glass-input p-2 rounded" placeholder="Skills" />
+            </div>`;
+        }
+      } else if (window.activeTab === 'education') {
+        c.innerHTML = window.isEditing 
+          ? `<button onclick="window.addItem('education', {degree:'New Degree', institution:'School', year:'2024'})" class="mb-4 px-3 py-1 bg-blue-600 rounded text-xs">+ Add</button>` + 
+            d.education.map(i => `<div class="p-3 mb-2 bg-white/5 border border-white/10 rounded relative"><button onclick="window.removeItem('education', ${i.id})" class="absolute top-2 right-2 text-red-400 text-xs">Delete</button><input type="text" value="${i.degree}" oninput="window.draftData.education.find(x=>x.id===${i.id}).degree=this.value" class="w-full glass-input mb-1 p-1" placeholder="Degree"><input type="text" value="${i.institution}" oninput="window.draftData.education.find(x=>x.id===${i.id}).institution=this.value" class="w-full glass-input mb-1 p-1" placeholder="School"><input type="text" value="${i.year}" oninput="window.draftData.education.find(x=>x.id===${i.id}).year=this.value" class="w-full glass-input p-1" placeholder="Year"></div>`).join('')
+          : d.education.map(i => `<div class="mb-4 pl-4 border-l-2 border-blue-400"><h3 class="font-bold">${i.degree}</h3><p class="text-sm text-blue-300">${i.institution} • ${i.year}</p></div>`).join('');
+      } else if (window.activeTab === 'projects') {
+        c.innerHTML = window.isEditing
+          ? `<button onclick="window.addItem('projects', {title:'New Project', description:'Info', tech:'React', url:'#'})" class="mb-4 px-3 py-1 bg-blue-600 rounded text-xs">+ Add</button>` + 
+            d.projects.map(i => `<div class="p-3 mb-2 bg-white/5 border border-white/10 rounded relative"><button onclick="window.removeItem('projects', ${i.id})" class="absolute top-2 right-2 text-red-400 text-xs">Delete</button><input type="text" value="${i.title}" oninput="window.draftData.projects.find(x=>x.id===${i.id}).title=this.value" class="w-full glass-input mb-1 p-1" placeholder="Title"><textarea oninput="window.draftData.projects.find(x=>x.id===${i.id}).description=this.value" class="w-full glass-input mb-1 p-1" placeholder="Desc">${i.description}</textarea><input type="text" value="${i.url}" oninput="window.draftData.projects.find(x=>x.id===${i.id}).url=this.value" class="w-full glass-input p-1" placeholder="URL"></div>`).join('')
+          : d.projects.map(i => `<div class="p-4 mb-4 bg-white/5 rounded-xl border border-white/10"><h3 class="font-bold">${i.title}</h3><p class="text-sm text-gray-300 my-1">${i.description}</p><a href="${i.url}" target="_blank" class="text-xs text-blue-400">View Project &rarr;</a></div>`).join('');
+      } else if (window.activeTab === 'achievements') {
+        c.innerHTML = window.isEditing
+          ? `<button onclick="window.addItem('achievements', {title:'New Award', description:'Details'})" class="mb-4 px-3 py-1 bg-blue-600 rounded text-xs">+ Add</button>` + 
+            d.achievements.map(i => `<div class="p-3 mb-2 bg-white/5 border border-white/10 rounded relative"><button onclick="window.removeItem('achievements', ${i.id})" class="absolute top-2 right-2 text-red-400 text-xs">Delete</button><input type="text" value="${i.title}" oninput="window.draftData.achievements.find(x=>x.id===${i.id}).title=this.value" class="w-full glass-input mb-1 p-1" placeholder="Title"><textarea oninput="window.draftData.achievements.find(x=>x.id===${i.id}).description=this.value" class="w-full glass-input p-1" placeholder="Desc">${i.description}</textarea></div>`).join('')
+          : d.achievements.map(i => `<div class="p-4 mb-4 bg-white/5 rounded-xl border border-white/10"><h3 class="font-bold">${i.title}</h3><p class="text-sm text-gray-300">${i.description}</p></div>`).join('');
+      } else if (window.activeTab === 'experience') {
+        c.innerHTML = window.isEditing
+          ? `<button onclick="window.addItem('experience', {role:'New Role', company:'Company', dates:'2024', bullets:'Duty'})" class="mb-4 px-3 py-1 bg-blue-600 rounded text-xs">+ Add</button>` + 
+            d.experience.map(i => `<div class="p-3 mb-2 bg-white/5 border border-white/10 rounded relative"><button onclick="window.removeItem('experience', ${i.id})" class="absolute top-2 right-2 text-red-400 text-xs">Delete</button><input type="text" value="${i.role}" oninput="window.draftData.experience.find(x=>x.id===${i.id}).role=this.value" class="w-full glass-input mb-1 p-1" placeholder="Role"><input type="text" value="${i.company}" oninput="window.draftData.experience.find(x=>x.id===${i.id}).company=this.value" class="w-full glass-input mb-1 p-1" placeholder="Company"><input type="text" value="${i.dates}" oninput="window.draftData.experience.find(x=>x.id===${i.id}).dates=this.value" class="w-full glass-input mb-1 p-1" placeholder="Dates"><textarea oninput="window.draftData.experience.find(x=>x.id===${i.id}).bullets=this.value" class="w-full glass-input p-1" placeholder="Bullets">${i.bullets}</textarea></div>`).join('')
+          : d.experience.map(i => `<div class="mb-4 pl-4 border-l-2 border-indigo-400"><h3 class="font-bold">${i.role}</h3><p class="text-sm text-indigo-300">${i.company} • ${i.dates}</p><p class="text-sm text-gray-300 mt-1 whitespace-pre-line">${i.bullets}</p></div>`).join('');
+      }
+    };
+
+    window.setTab('personalInfo');
+    loadData();
+  </script>
+</body>
+</html>
