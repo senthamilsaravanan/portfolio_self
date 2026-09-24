@@ -114,6 +114,7 @@
       personalInfo: {
         name: "Your Name", title: "Your Profession", bio: "Your bio goes here.", 
         skills: "React, Tailwind, JavaScript", 
+        tools: "Figma, Git, VS Code",
         github: "#", linkedin: "#", avatar: "https://via.placeholder.com/150", cvUrl: ""
       },
       education: [], projects: [], achievements: [], experience: []
@@ -131,6 +132,11 @@
         const docSnap = await getDoc(doc(db, "portfolio", "liveData"));
         if (docSnap.exists()) window.portfolioData = docSnap.data();
         else await setDoc(doc(db, "portfolio", "liveData"), DEFAULT_DATA);
+        
+        // Ensure legacy data gets a tools field if missing
+        if(window.portfolioData.personalInfo && window.portfolioData.personalInfo.tools === undefined) {
+          window.portfolioData.personalInfo.tools = "";
+        }
         
         window.draftData = JSON.parse(JSON.stringify(window.portfolioData));
         window.renderContent();
@@ -167,7 +173,7 @@
           window.draftData.personalInfo.cvUrl = url;
           alert("PDF Uploaded! Click 'Save Changes' to update the live site."); 
           window.renderContent();
-        } catch (e) { alert("Upload failed. Check Cloudinary keys."); }
+        } catch (e) { alert("Upload failed. Make sure you enabled PDF delivery in Cloudinary Security Settings."); }
       }
     };
 
@@ -234,31 +240,39 @@
             <div class="flex flex-col gap-10">
               <div class="flex flex-col sm:flex-row gap-8">
                 <img src="${d.personalInfo.avatar}" class="w-32 h-32 rounded-3xl object-cover border border-white/20 flex-shrink-0" />
-                <div class="space-y-5 w-full">
+                <div class="space-y-4 w-full">
                   <div>
                     <h1 class="text-4xl font-bold text-white">${d.personalInfo.name}</h1>
                     <p class="text-blue-400">${d.personalInfo.title}</p>
                   </div>
                   <p class="text-gray-300 text-sm leading-relaxed">${d.personalInfo.bio}</p>
-                  
-                  <div class="pt-2 border-t border-white/10 mt-6">
-                    <span class="text-sm font-bold text-gray-400 uppercase tracking-wider block mt-4 mb-3">Skills</span>
-                    <ul class="list-disc list-inside text-gray-300 space-y-1.5 text-sm">
-                      ${d.personalInfo.skills.split(',').filter(s=>s.trim()).map(s => `<li>${s.trim()}</li>`).join('')}
-                    </ul>
-                  </div>
+                </div>
+              </div>
+              
+              <div class="pt-6 border-t border-white/10 space-y-5">
+                <div>
+                  <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2.5">Skills</h3>
+                  <ul class="flex gap-2 flex-wrap">
+                    ${d.personalInfo.skills.split(',').filter(s=>s.trim()).map(s => `<li class="px-3 py-1 bg-blue-500/10 text-blue-200 border border-blue-500/20 rounded-full text-xs">${s.trim()}</li>`).join('')}
+                  </ul>
+                </div>
+                <div>
+                  <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2.5">Tools</h3>
+                  <ul class="flex gap-2 flex-wrap">
+                    ${(d.personalInfo.tools || '').split(',').filter(s=>s.trim()).map(s => `<li class="px-3 py-1 bg-purple-500/10 text-purple-200 border border-purple-500/20 rounded-full text-xs">${s.trim()}</li>`).join('')}
+                  </ul>
                 </div>
               </div>
               
               ${d.personalInfo.cvUrl ? `
-                <div class="w-full pt-6 border-t border-white/10 mt-2 text-center">
+                <div class="w-full pt-6 border-t border-white/10 text-center">
                   <button onclick="window.toggleResume()" class="px-6 py-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold rounded-full transition shadow-lg">
                     ${window.showResume ? 'Close Resume' : 'View Resume'}
                   </button>
                   
                   ${window.showResume ? `
-                    <div class="mt-8">
-                      <iframe src="${d.personalInfo.cvUrl}" class="w-full h-[600px] rounded-2xl border border-white/20 bg-white/5" title="PDF Resume"></iframe>
+                    <div class="mt-8 relative w-full h-[600px] rounded-2xl overflow-hidden border border-white/20 bg-white/5">
+                      <iframe src="${d.personalInfo.cvUrl}#toolbar=0&navpanes=0&scrollbar=0" class="w-full h-full absolute inset-0" frameborder="0"></iframe>
                     </div>
                   ` : ''}
                 </div>
@@ -272,7 +286,8 @@
               <input type="text" value="${d.personalInfo.name}" oninput="window.draftData.personalInfo.name=this.value" class="w-full glass-input p-2 rounded" placeholder="Name" />
               <input type="text" value="${d.personalInfo.title}" oninput="window.draftData.personalInfo.title=this.value" class="w-full glass-input p-2 rounded" placeholder="Title" />
               <textarea oninput="window.draftData.personalInfo.bio=this.value" class="w-full glass-input p-2 rounded" placeholder="Bio">${d.personalInfo.bio}</textarea>
-              <textarea oninput="window.draftData.personalInfo.skills=this.value" class="w-full glass-input p-2 rounded" placeholder="Skills (comma separated)">${d.personalInfo.skills}</textarea>
+              <input type="text" value="${d.personalInfo.skills}" oninput="window.draftData.personalInfo.skills=this.value" class="w-full glass-input p-2 rounded" placeholder="Skills (comma separated)" />
+              <input type="text" value="${d.personalInfo.tools || ''}" oninput="window.draftData.personalInfo.tools=this.value" class="w-full glass-input p-2 rounded" placeholder="Tools (comma separated)" />
             </div>`;
         }
       } else if (window.activeTab === 'education') {
