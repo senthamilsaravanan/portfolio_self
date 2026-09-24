@@ -37,7 +37,7 @@
   </div>
 
   <div class="max-w-4xl mx-auto px-4 py-10 pb-32">
-    <!-- Combined Tabs -->
+    <!-- Tabs -->
     <header class="sticky top-6 z-40 mb-10 flex justify-center">
       <div id="tabBar" class="glass-panel p-1.5 rounded-2xl flex flex-wrap gap-1 shadow-2xl">
         <button onclick="window.setTab('personalInfo')" id="tab-personalInfo" class="px-4 py-2 rounded-xl text-sm font-medium">Profile</button>
@@ -141,7 +141,7 @@
     }
 
     window.saveAllChanges = async function() {
-      if (!db) { alert("Database not connected. Check your Firebase keys."); return; }
+      if (!db) { alert("Database not connected."); return; }
       try {
         window.portfolioData = JSON.parse(JSON.stringify(window.draftData));
         await setDoc(doc(db, "portfolio", "liveData"), window.portfolioData);
@@ -163,15 +163,29 @@
       return data.secure_url;
     }
 
-    window.handleCvUpload = async function(event) {
-      if (event.target.files[0]) {
-        try {
-          const url = await uploadToCloudinary(event.target.files[0], 'image');
-          window.draftData.personalInfo.cvUrl = url;
-          alert("PDF Uploaded! Click 'Save Changes' to update the live site."); 
+    // NEW PDF UPLOAD: Converts PDF directly to Base64 to bypass Cloudinary entirely
+    window.handleCvUpload = function(event) {
+      const file = event.target.files[0];
+      if (file) {
+        if (file.size > 1048576) { // 1MB limit for Firebase document storage
+          alert("PDF is too large. Please keep it under 1MB.");
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          window.draftData.personalInfo.cvUrl = e.target.result;
+          alert("PDF Uploaded successfully! Click 'Save Changes'.");
           window.renderContent();
-        } catch (e) { alert("Upload failed. Make sure you enabled PDF delivery in Cloudinary Security Settings."); }
+        };
+        reader.readAsDataURL(file);
       }
+    };
+    
+    // NEW FUNCTION: Delete the current PDF
+    window.deletePdf = function() {
+      window.draftData.personalInfo.cvUrl = "";
+      alert("PDF Deleted. Click 'Save Changes' to finalize.");
+      window.renderContent();
     };
 
     window.handlePhotoUpload = async function(event) {
@@ -186,7 +200,6 @@
     window.setTab = function(tab) {
       window.activeTab = tab;
       window.showResume = false;
-      // Updated tab list
       ['personalInfo', 'projectsEducation', 'experienceAchievements'].forEach(t => {
         const el = document.getElementById(`tab-${t}`);
         if(el) el.className = (t === window.activeTab) 
@@ -262,6 +275,7 @@
                 </div>
               </div>
               
+              <!-- PDF VIEWER TOGGLE -->
               ${d.personalInfo.cvUrl ? `
                 <div class="w-full pt-6 border-t border-white/10 text-center">
                   <button onclick="window.toggleResume()" class="px-6 py-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold rounded-full transition shadow-lg">
@@ -270,7 +284,7 @@
                   
                   ${window.showResume ? `
                     <div class="mt-8 relative w-full h-[600px] rounded-2xl overflow-hidden border border-white/20 bg-white/5">
-                      <iframe src="${d.personalInfo.cvUrl}#toolbar=0&navpanes=0&scrollbar=0" class="w-full h-full absolute inset-0" frameborder="0"></iframe>
+                      <iframe src="${d.personalInfo.cvUrl}" class="w-full h-full absolute inset-0" frameborder="0"></iframe>
                     </div>
                   ` : ''}
                 </div>
@@ -280,7 +294,14 @@
           c.innerHTML = `
             <div class="space-y-4">
               <input type="file" accept="image/*" onchange="window.handlePhotoUpload(event)" class="text-xs file:bg-blue-600 file:text-white file:rounded-xl file:px-3 file:py-1 file:border-0" /> Photo<br>
-              <input type="file" accept="application/pdf" onchange="window.handleCvUpload(event)" class="text-xs file:bg-indigo-600 file:text-white file:rounded-xl file:px-3 file:py-1 file:border-0" /> PDF Resume<br>
+              
+              <!-- PDF CONTROLS -->
+              <div class="flex items-center gap-4 bg-white/5 p-3 rounded-lg border border-white/10">
+                <input type="file" accept="application/pdf" onchange="window.handleCvUpload(event)" class="text-xs file:bg-indigo-600 file:text-white file:rounded-xl file:px-3 file:py-1 file:border-0" /> 
+                <span class="text-xs text-gray-400">PDF Resume</span>
+                ${d.personalInfo.cvUrl ? `<button onclick="window.deletePdf()" class="text-xs bg-red-500/20 text-red-300 px-3 py-1.5 rounded-lg hover:bg-red-500/30">Delete Current PDF</button>` : `<span class="text-xs text-yellow-400">No PDF uploaded</span>`}
+              </div>
+              
               <input type="text" value="${d.personalInfo.name}" oninput="window.draftData.personalInfo.name=this.value" class="w-full glass-input p-2 rounded" placeholder="Name" />
               <input type="text" value="${d.personalInfo.title}" oninput="window.draftData.personalInfo.title=this.value" class="w-full glass-input p-2 rounded" placeholder="Title" />
               <textarea oninput="window.draftData.personalInfo.bio=this.value" class="w-full glass-input p-2 rounded" placeholder="Bio">${d.personalInfo.bio}</textarea>
@@ -290,7 +311,6 @@
         }
       } 
       
-      // COMBINED TAB: PROJECTS & EDUCATION
       else if (window.activeTab === 'projectsEducation') {
         if (!window.isEditing) {
           c.innerHTML = `
@@ -331,7 +351,6 @@
         }
       } 
       
-      // COMBINED TAB: EXPERIENCE & AWARDS
       else if (window.activeTab === 'experienceAchievements') {
         if (!window.isEditing) {
           c.innerHTML = `
