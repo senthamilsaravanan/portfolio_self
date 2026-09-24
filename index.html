@@ -112,7 +112,9 @@
 
     const DEFAULT_DATA = {
       personalInfo: {
-        name: "Your Name", title: "Your Profession", bio: "Your bio goes here.", skills: "Skill 1, Skill 2",
+        name: "Your Name", title: "Your Profession", bio: "Your bio goes here.", 
+        skills: "React, Tailwind, JavaScript", 
+        tools: "Figma, VS Code, Git",
         github: "#", linkedin: "#", avatar: "https://via.placeholder.com/150", cvUrl: ""
       },
       education: [], projects: [], achievements: [], experience: []
@@ -122,6 +124,7 @@
     window.draftData = JSON.parse(JSON.stringify(DEFAULT_DATA));
     window.activeTab = 'personalInfo';
     window.isEditing = false;
+    window.showResume = false; // Tracks if the PDF viewer is open
 
     async function loadData() {
       if (!db) return;
@@ -129,6 +132,12 @@
         const docSnap = await getDoc(doc(db, "portfolio", "liveData"));
         if (docSnap.exists()) window.portfolioData = docSnap.data();
         else await setDoc(doc(db, "portfolio", "liveData"), DEFAULT_DATA);
+        
+        // Ensure legacy data gets a tools field if they don't have one
+        if(window.portfolioData.personalInfo && !window.portfolioData.personalInfo.tools) {
+          window.portfolioData.personalInfo.tools = "";
+        }
+        
         window.draftData = JSON.parse(JSON.stringify(window.portfolioData));
         window.renderContent();
       } catch (e) { console.error("Database connection error:", e); }
@@ -160,7 +169,6 @@
     window.handleCvUpload = async function(event) {
       if (event.target.files[0]) {
         try {
-          // Changed 'raw' to 'image' here to bypass the 401 ACL error
           const url = await uploadToCloudinary(event.target.files[0], 'image');
           window.draftData.personalInfo.cvUrl = url;
           alert("PDF Uploaded! Click 'Save Changes'."); 
@@ -180,12 +188,18 @@
 
     window.setTab = function(tab) {
       window.activeTab = tab;
+      window.showResume = false; // Reset PDF viewer on tab change
       ['personalInfo', 'education', 'projects', 'achievements', 'experience'].forEach(t => {
         const el = document.getElementById(`tab-${t}`);
         if(el) el.className = (t === window.activeTab) 
           ? 'px-4 py-2 rounded-xl text-sm font-medium bg-white/20 text-white shadow' 
           : 'px-4 py-2 rounded-xl text-sm font-medium text-gray-400 hover:text-white';
       });
+      window.renderContent();
+    };
+    
+    window.toggleResume = function() {
+      window.showResume = !window.showResume;
       window.renderContent();
     };
 
@@ -223,22 +237,44 @@
       if (window.activeTab === 'personalInfo') {
         if (!window.isEditing) {
           c.innerHTML = `
-            <div class="flex flex-col sm:flex-row gap-8 mb-8">
-              <img src="${d.personalInfo.avatar}" class="w-32 h-32 rounded-3xl object-cover border border-white/20" />
-              <div class="space-y-4 w-full">
-                <h1 class="text-4xl font-bold text-white">${d.personalInfo.name}</h1>
-                <p class="text-blue-400">${d.personalInfo.title}</p>
-                <p class="text-gray-300 text-sm">${d.personalInfo.bio}</p>
-                <div class="flex gap-2 flex-wrap">${d.personalInfo.skills.split(',').map(s => `<span class="px-2 py-1 bg-white/10 rounded-full text-xs">${s.trim()}</span>`).join('')}</div>
+            <div class="flex flex-col gap-10">
+              <div class="flex flex-col sm:flex-row gap-8">
+                <img src="${d.personalInfo.avatar}" class="w-32 h-32 rounded-3xl object-cover border border-white/20 flex-shrink-0" />
+                <div class="space-y-5 w-full">
+                  <div>
+                    <h1 class="text-4xl font-bold text-white">${d.personalInfo.name}</h1>
+                    <p class="text-blue-400">${d.personalInfo.title}</p>
+                  </div>
+                  <p class="text-gray-300 text-sm leading-relaxed">${d.personalInfo.bio}</p>
+                  
+                  <div class="pt-2">
+                    <div class="flex items-start gap-4 mb-3">
+                      <span class="text-sm font-bold text-gray-400 uppercase tracking-wider w-16 mt-1">Skills</span>
+                      <div class="flex gap-2 flex-wrap">${d.personalInfo.skills.split(',').filter(s=>s.trim()).map(s => `<span class="px-3 py-1 bg-blue-500/10 text-blue-200 border border-blue-500/20 rounded-full text-xs">${s.trim()}</span>`).join('')}</div>
+                    </div>
+                    <div class="flex items-start gap-4">
+                      <span class="text-sm font-bold text-gray-400 uppercase tracking-wider w-16 mt-1">Tools</span>
+                      <div class="flex gap-2 flex-wrap">${(d.personalInfo.tools || '').split(',').filter(s=>s.trim()).map(s => `<span class="px-3 py-1 bg-purple-500/10 text-purple-200 border border-purple-500/20 rounded-full text-xs">${s.trim()}</span>`).join('')}</div>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
-            ${d.personalInfo.cvUrl ? `
-              <div class="w-full pt-8 border-t border-white/10 mt-6">
-                <h3 class="text-xl font-bold mb-4 text-white">Resume</h3>
-                <iframe src="${d.personalInfo.cvUrl}" class="w-full h-[600px] rounded-2xl border border-white/20 bg-white/5" title="PDF Resume"></iframe>
-              </div>
-            ` : ''}
-          `;
+              
+              <!-- PDF VIEWER TOGGLE -->
+              ${d.personalInfo.cvUrl ? `
+                <div class="w-full pt-6 border-t border-white/10 mt-2 text-center">
+                  <button onclick="window.toggleResume()" class="px-6 py-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold rounded-full transition shadow-lg">
+                    ${window.showResume ? 'Close Resume' : 'View Resume'}
+                  </button>
+                  
+                  ${window.showResume ? `
+                    <div class="mt-8">
+                      <iframe src="${d.personalInfo.cvUrl}" class="w-full h-[600px] rounded-2xl border border-white/20 bg-white/5" title="PDF Resume"></iframe>
+                    </div>
+                  ` : ''}
+                </div>
+              ` : ''}
+            </div>`;
         } else {
           c.innerHTML = `
             <div class="space-y-4">
@@ -247,7 +283,8 @@
               <input type="text" value="${d.personalInfo.name}" oninput="window.draftData.personalInfo.name=this.value" class="w-full glass-input p-2 rounded" placeholder="Name" />
               <input type="text" value="${d.personalInfo.title}" oninput="window.draftData.personalInfo.title=this.value" class="w-full glass-input p-2 rounded" placeholder="Title" />
               <textarea oninput="window.draftData.personalInfo.bio=this.value" class="w-full glass-input p-2 rounded" placeholder="Bio">${d.personalInfo.bio}</textarea>
-              <input type="text" value="${d.personalInfo.skills}" oninput="window.draftData.personalInfo.skills=this.value" class="w-full glass-input p-2 rounded" placeholder="Skills" />
+              <input type="text" value="${d.personalInfo.skills}" oninput="window.draftData.personalInfo.skills=this.value" class="w-full glass-input p-2 rounded" placeholder="Core Skills (comma separated)" />
+              <input type="text" value="${d.personalInfo.tools || ''}" oninput="window.draftData.personalInfo.tools=this.value" class="w-full glass-input p-2 rounded" placeholder="Tools (comma separated)" />
             </div>`;
         }
       } else if (window.activeTab === 'education') {
