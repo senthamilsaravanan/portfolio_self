@@ -84,11 +84,17 @@
   </div>
 
   <script type="module">
-    // 1. Keep these CDN imports instead of the ones Firebase generated
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
     import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
 
-    // 2. YOUR FIREBASE CONFIGURATION
+    // ==========================================
+    // 1. SET YOUR CUSTOM ADMIN PASSWORD HERE
+    // ==========================================
+    const ADMIN_PASSWORD = "MySecretPassword123";
+
+    // ==========================================
+    // 2. PASTE FIREBASE CONFIG HERE
+    // ==========================================
     const firebaseConfig = {
       apiKey: "AIzaSyCt7yTBn7gsH3nzsuJJ3wPXqXjgVW-qDh8",
       authDomain: "portfolio-db-907f2.firebaseapp.com",
@@ -99,15 +105,20 @@
       measurementId: "G-X3S3723JYB"
     };
 
-    // 3. YOUR CLOUDINARY CONFIGURATION (You still need to get these from Cloudinary)
+    // ==========================================
+    // 3. PASTE CLOUDINARY CONFIG HERE
+    // ==========================================
     const CLOUD_NAME = "mgzx7yxx"; 
-    const UPLOAD_PRESET = "portfolio_preset"; 
+    const UPLOAD_PRESET = "portfolio_preset";
 
-    // Initialize Firebase
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    // ... [Leave the rest of the DEFAULT_DATA and functions exactly the same] ...
+    // --- Safe Initialization (Prevents Blank Screen) ---
+    let app, db;
+    try {
+      app = initializeApp(firebaseConfig);
+      db = getFirestore(app);
+    } catch (e) {
+      console.warn("Database not connected. Rendering default template.");
+    }
 
     const DEFAULT_DATA = {
       personalInfo: {
@@ -123,16 +134,18 @@
     window.isEditing = false;
 
     async function loadData() {
+      if (!db) return; // Skip if Firebase failed to initialize
       try {
         const docSnap = await getDoc(doc(db, "portfolio", "liveData"));
         if (docSnap.exists()) window.portfolioData = docSnap.data();
         else await setDoc(doc(db, "portfolio", "liveData"), DEFAULT_DATA);
         window.draftData = JSON.parse(JSON.stringify(window.portfolioData));
         window.renderContent();
-      } catch (e) { console.error("Database error:", e); }
+      } catch (e) { console.error("Database connection error:", e); }
     }
 
     window.saveAllChanges = async function() {
+      if (!db) { alert("Database not connected. Check your Firebase keys."); return; }
       try {
         window.portfolioData = JSON.parse(JSON.stringify(window.draftData));
         await setDoc(doc(db, "portfolio", "liveData"), window.portfolioData);
@@ -149,6 +162,7 @@
       formData.append('file', file);
       formData.append('upload_preset', UPLOAD_PRESET);
       const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`, { method: 'POST', body: formData });
+      if (!res.ok) throw new Error("Upload blocked.");
       const data = await res.json();
       return data.secure_url;
     }
@@ -159,7 +173,7 @@
           const url = await uploadToCloudinary(event.target.files[0], 'raw');
           window.draftData.personalInfo.cvUrl = url;
           alert("PDF Uploaded! Click 'Save Changes'."); window.renderContent();
-        } catch (e) { alert("Upload failed."); }
+        } catch (e) { alert("Upload failed. Check Cloudinary keys."); }
       }
     };
 
@@ -168,14 +182,15 @@
         try {
           const url = await uploadToCloudinary(event.target.files[0], 'image');
           window.draftData.personalInfo.avatar = url; window.renderContent();
-        } catch (e) { alert("Upload failed."); }
+        } catch (e) { alert("Upload failed. Check Cloudinary keys."); }
       }
     };
 
     window.setTab = function(tab) {
       window.activeTab = tab;
       ['personalInfo', 'education', 'projects', 'achievements', 'experience'].forEach(t => {
-        document.getElementById(`tab-${t}`).className = (t === window.activeTab) 
+        const el = document.getElementById(`tab-${t}`);
+        if(el) el.className = (t === window.activeTab) 
           ? 'px-4 py-2 rounded-xl text-sm font-medium bg-white/20 text-white shadow' 
           : 'px-4 py-2 rounded-xl text-sm font-medium text-gray-400 hover:text-white';
       });
@@ -186,13 +201,16 @@
     window.closeAuthModal = function() { document.getElementById('authModal').classList.add('hidden'); };
     window.handleAuthSubmit = function(e) {
       e.preventDefault();
-      if (document.getElementById('authPasswordInput').value === 'admin123') {
+      // Uses the new custom password variable
+      if (document.getElementById('authPasswordInput').value === ADMIN_PASSWORD) {
         window.isEditing = true;
         window.draftData = JSON.parse(JSON.stringify(window.portfolioData));
         window.closeAuthModal();
         document.getElementById('adminGear').classList.add('hidden');
         document.getElementById('editToolbar').classList.remove('hidden');
         window.renderContent();
+      } else {
+        document.getElementById('authErrorMsg').classList.remove('hidden');
       }
     };
     window.cancelEditing = function() {
@@ -256,7 +274,11 @@
       }
     };
 
+    // --- INSTANT RENDER (Fixes the blank page) ---
+    window.renderContent();
     window.setTab('personalInfo');
+    
+    // Attempt database load in background
     loadData();
   </script>
 </body>
