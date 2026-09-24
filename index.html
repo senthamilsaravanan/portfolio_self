@@ -88,12 +88,8 @@
     import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
 
     // ==========================================
-    // 1. SET YOUR CUSTOM ADMIN PASSWORD HERE
-    // ==========================================
     const ADMIN_PASSWORD = "MySecretPassword123";
 
-    // ==========================================
-    // 2. PASTE FIREBASE CONFIG HERE
     // ==========================================
     const firebaseConfig = {
       apiKey: "AIzaSyCt7yTBn7gsH3nzsuJJ3wPXqXjgVW-qDh8",
@@ -106,18 +102,16 @@
     };
 
     // ==========================================
-    // 3. PASTE CLOUDINARY CONFIG HERE
-    // ==========================================
     const CLOUD_NAME = "mgzx7yxx"; 
     const UPLOAD_PRESET = "portfolio_preset";
 
-    // --- Safe Initialization (Prevents Blank Screen) ---
+    // --- Safe Initialization ---
     let app, db;
     try {
       app = initializeApp(firebaseConfig);
       db = getFirestore(app);
     } catch (e) {
-      console.warn("Database not connected. Rendering default template.");
+      console.warn("Database not connected.");
     }
 
     const DEFAULT_DATA = {
@@ -134,7 +128,7 @@
     window.isEditing = false;
 
     async function loadData() {
-      if (!db) return; // Skip if Firebase failed to initialize
+      if (!db) return;
       try {
         const docSnap = await getDoc(doc(db, "portfolio", "liveData"));
         if (docSnap.exists()) window.portfolioData = docSnap.data();
@@ -145,7 +139,7 @@
     }
 
     window.saveAllChanges = async function() {
-      if (!db) { alert("Database not connected. Check your Firebase keys."); return; }
+      if (!db) { alert("Database not connected."); return; }
       try {
         window.portfolioData = JSON.parse(JSON.stringify(window.draftData));
         await setDoc(doc(db, "portfolio", "liveData"), window.portfolioData);
@@ -170,7 +164,8 @@
     window.handleCvUpload = async function(event) {
       if (event.target.files[0]) {
         try {
-          const url = await uploadToCloudinary(event.target.files[0], 'raw');
+          // CHANGED 'raw' TO 'image' TO FIX 401 ERROR & ALLOW BROWSER VIEWING
+          const url = await uploadToCloudinary(event.target.files[0], 'image');
           window.draftData.personalInfo.cvUrl = url;
           alert("PDF Uploaded! Click 'Save Changes'."); window.renderContent();
         } catch (e) { alert("Upload failed. Check Cloudinary keys."); }
@@ -201,7 +196,6 @@
     window.closeAuthModal = function() { document.getElementById('authModal').classList.add('hidden'); };
     window.handleAuthSubmit = function(e) {
       e.preventDefault();
-      // Uses the new custom password variable
       if (document.getElementById('authPasswordInput').value === ADMIN_PASSWORD) {
         window.isEditing = true;
         window.draftData = JSON.parse(JSON.stringify(window.portfolioData));
@@ -230,15 +224,26 @@
       if (window.activeTab === 'personalInfo') {
         if (!window.isEditing) {
           c.innerHTML = `
-            <div class="flex flex-col sm:flex-row gap-8">
-              <img src="${d.personalInfo.avatar}" class="w-32 h-32 rounded-3xl object-cover border border-white/20" />
-              <div class="space-y-4">
-                <h1 class="text-4xl font-bold text-white">${d.personalInfo.name}</h1>
-                <p class="text-blue-400">${d.personalInfo.title}</p>
-                <p class="text-gray-300 text-sm">${d.personalInfo.bio}</p>
-                <div class="flex gap-2">${d.personalInfo.skills.split(',').map(s => `<span class="px-2 py-1 bg-white/10 rounded-full text-xs">${s.trim()}</span>`).join('')}</div>
-                ${d.personalInfo.cvUrl ? `<a href="${d.personalInfo.cvUrl}" target="_blank" class="inline-block px-5 py-2 bg-white text-black rounded-full text-sm font-bold">Download CV</a>` : ''}
+            <div class="flex flex-col gap-10">
+              <div class="flex flex-col sm:flex-row gap-8">
+                <img src="${d.personalInfo.avatar}" class="w-32 h-32 rounded-3xl object-cover border border-white/20 flex-shrink-0" />
+                <div class="space-y-4">
+                  <h1 class="text-4xl font-bold text-white">${d.personalInfo.name}</h1>
+                  <p class="text-blue-400">${d.personalInfo.title}</p>
+                  <p class="text-gray-300 text-sm">${d.personalInfo.bio}</p>
+                  <div class="flex flex-wrap gap-2">${d.personalInfo.skills.split(',').map(s => `<span class="px-2 py-1 bg-white/10 rounded-full text-xs">${s.trim()}</span>`).join('')}</div>
+                </div>
               </div>
+              
+              <!-- PDF VIEWER EMBEDDED DIRECTLY IN PAGE -->
+              ${d.personalInfo.cvUrl ? `
+                <div class="w-full">
+                  <h3 class="text-sm font-bold text-gray-400 mb-4 uppercase tracking-wider">Resume / CV</h3>
+                  <div class="w-full h-[600px] rounded-2xl overflow-hidden border border-white/20 shadow-2xl bg-white/5 relative">
+                    <iframe src="${d.personalInfo.cvUrl}" class="w-full h-full absolute inset-0" frameborder="0"></iframe>
+                  </div>
+                </div>
+              ` : ''}
             </div>`;
         } else {
           c.innerHTML = `
@@ -274,11 +279,8 @@
       }
     };
 
-    // --- INSTANT RENDER (Fixes the blank page) ---
     window.renderContent();
     window.setTab('personalInfo');
-    
-    // Attempt database load in background
     loadData();
   </script>
 </body>
